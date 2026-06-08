@@ -1,56 +1,48 @@
-# RESUME — zallet-hub (updated 2026-06-04, end of session)
+# RESUME — zallet-hub (updated 2026-06-08, end of session)
 
 Prior session's "start here". Full detail in `wip.md` (newest on top; 📥 INBOX parsed by `sync.sh`).
 
 ## Headline
-Productive session: drove **3 `zcash/wallet` PRs** forward and **emptied the INBOX**. All work is
-pushed to GitHub; nothing is stuck locally. The common remaining blocker across everything is a
-**workspace-wide CI breakage** (not our code) + needing **external reviewers / interop**.
+Cleared the rebase backlog: **all four open zallet PRs are now on current `main`, build/fmt/clippy
+green, pushed.** Main's **orchard-0.14 / zebra-9.0 bump (2026-06-06) cleared the workspace CI blocker**
+(the yanked `orchard ^0.13` / NU7 failures) that was red on everything — so CI should now go green across
+the board. The remaining blocker on most PRs is just **reviewers / merge rights**, not code.
 
-## State of the 3 PRs (all pushed, all MERGEABLE)
+## State of the 4 PRs (all rebased onto main this session, all pushed)
 
-1. **#400 — `z_importkey`/`z_exportkey` for Sapling** (yours, APPROVED by nullcopy)
+1. **#400 — `z_importkey`/`z_exportkey`** (yours, **APPROVED** by nullcopy) — **CLOSEST TO DONE**
    https://github.com/zcash/wallet/pull/400
-   - DONE: rebased onto main (keystore conflict resolved), all 6 nullcopy comments addressed, z_exportkey
-     fund-loss warning in help text, CHANGELOG entry, dual AI co-author, amended into one commit
-     `1804337`, force-pushed. 6 inline replies + summary comment (with delay apology) posted. Self-review
-     done (no bugs; one optional nit left: `&address[..16]` panic-safety — not applied).
-   - TO MERGE: it's approved + mergeable. Just needs the workspace CI fixed (see below) and a maintainer
-     to merge. **Closest to done.**
+   - Rebased (`368ec79`). Conflicts were CHANGELOG + utils.rs (kept both new fns). **Not purely
+     mechanical:** adapted `fetch_account_birthday` off the now-private `chain.fetcher.get_treestate`
+     to the public `chain.z_get_treestate` + `ZcashIndexer` trait (matches `get_new_account.rs`).
+   - TO MERGE: approved + mergeable + CI should be green → **just needs a maintainer to merge.**
 
-2. **#455 — empty shielded tree state crash** (NEW this session; was INBOX #3)
-   https://github.com/zcash/wallet/pull/455  → Closes **#454** (issue we filed, labels C-bug/A-sync)
-   - Branch `fix/empty-shielded-tree-state` @ `3ab7bc7`. Fixes `fetch_chain_state` "Missing Sapling/
-     Orchard tree state" crash (both pools, symmetric). Determined it's a **genuine zallet bug**, fix is
-     **permanent (NOT a zaino stopgap)** — `None` ⟺ empty tree; nothing for zaino to do. CHANGELOG +
-     AI co-author. fmt/clippy clean.
-   - TO MERGE: needs review/approval + workspace CI fixed.
+2. **#455 — empty shielded tree state** (yours) — RECLASSIFIED to a robustness fix
+   https://github.com/zcash/wallet/pull/455
+   - Rebased (`00ef236`). zit-hub reported integration-tests **#104** (NU5→height 1) makes stock zallet
+     sync without this PR — so it's **no longer an IT blocker**, but still worth landing (None⟺empty is
+     correct on any chain). Posted a status comment saying exactly that. **Decided to SKIP a unit test**
+     (path unreachable via zebra under aligned params; no mock infra). Needs a reviewer.
 
-3. **#367 — `getwalletstatus`** (str4d's; you're co-driving, str4d is AWAY)
-   https://github.com/zcash/wallet/pull/367  (cross-repo interop: `ZIT-Revision` → integration-tests #56)
-   - Reviewed all 4 threads; your commit `8bf1db9` (Progress struct + docs + CHANGELOG) on top of str4d's,
-     rebased onto main, force-pushed. **All 4 conversations resolved; marked Ready for Review** (un-drafted).
-   - TO MERGE: (a) **needs a separate reviewer** (you're now a co-author, str4d away); (b) **interop
-     integration-tests #56 must land** + ZIT-Revision finalized (zit-hub; "tackle soon" — see memory
-     `it56-interop-for-wallet367`); (c) workspace CI.
+3. **#353 — `openrpsee`** (yours) — net cleanup (+31/−357)
+   https://github.com/zcash/wallet/pull/353
+   - Rebased (`d0a1fb2`). Cargo.lock conflict (branch pinned stale orchard 0.13.1) resolved by taking
+     main's lock + `cargo build` (now clean on orchard 0.14). Needs a reviewer.
 
-## ⚠️ The cross-cutting blocker: workspace CI is red for everyone
-Two pre-existing, dependency-level failures fail on EVERY PR (incl. all 3 above), not our code:
-- **`Test NU7`**: `error[E0004]: NetworkUpgrade::Nu7 not covered` in `zebra-chain` (built with
-  `--cfg zcash_unstable="nu7"`).
-- **`Latest build`**: `failed to select a version for orchard = "^0.13"`.
-Next-session candidate: investigate whether these need a zallet dep bump (zallet-owned) or are
-upstream/zebra issues. Fixing them unblocks green CI on #400, #455, AND #367 at once.
+4. **#367 — `getwalletstatus`** (str4d's; you co-driving, str4d AWAY) — cross-repo interop
+   https://github.com/zcash/wallet/pull/367
+   - MERGEABLE, not rebased (didn't need it). **Now DECOUPLED from #455** — integration-tests **#56**
+     needs only #367. Still needs: a separate reviewer + #56 to land (zit-hub; see memory
+     `it56-interop-for-wallet367`).
 
-## ../wallet checkout state (nothing lost)
-- Currently on branch `316-wallet-status`; working tree clean.
-- All 3 session branches fully pushed (0 unpushed).
-- **`stash@{0}`** = the pre-session WIP `book/src/SUMMARY.md` edit on branch `170-mdbook` (stashed at
-  session start to free the tree). Restore with: `git checkout 170-mdbook && git stash pop`.
-- `patches/zallet-3-empty-orchard-tree.patch` is now **superseded** by #455 (and only fixed Orchard) —
-  safe to delete.
+## ../wallet checkout state
+- Left on branch `openrpsee`, working tree clean. All four session branches pushed (0 unpushed).
 
 ## Suggested first action next session
-Pick **the workspace NU7/orchard CI fix** — it's the single thing gating green CI on all three open PRs
-(#400 ready-to-merge, #455, #367). Alternatively, **integration-tests #56** to unblock #367's interop
-(coordinate with zit-hub), or find a **reviewer for #455 + #367**.
+Confirm CI actually went green on #400 (now that the orchard-0.14 blocker is gone) and **chase a
+maintainer to merge it** — it's approved + mergeable, the lowest-effort win. Then find reviewers for
+#353 + #455, and coordinate #367's interop (#56) with zit-hub.
+
+## Open loop handed back to zit-hub
+The #455 reclassification verdict is now durable on the PR (`#issuecomment-4653238011`). zit-hub's side:
+re-validate #56 against #367 alone (no longer #367+#455).

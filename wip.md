@@ -14,6 +14,112 @@ _(empty — the "Missing Orchard tree state" handoff shipped as zcash/wallet #45
 
 ---
 
+## ✅ 2026-06-08 — #353 (`openrpsee`) rebased onto main + pushed
+
+PR https://github.com/zcash/wallet/pull/353 — yours, `docs(openrpc): Use common crate`, was
+`CONFLICTING/DIRTY` (16 behind main). Rebased `openrpsee` onto current main; new head `d0a1fb2`
+(force-pushed `efe9e5b…d0a1fb2`), 0 behind. Build + `cargo fmt --check` + `cargo clippy -p zallet` green.
+
+**Conflicts (dependency machinery):**
+- `Cargo.lock` (2 hunks) — branch pinned **`orchard 0.13.1`**; main is now on `orchard` 0.14. Did NOT
+  hand-merge — took main's lock wholesale (`git checkout origin/main -- Cargo.lock`) then `cargo build`
+  to add `openrpsee` incrementally. Net lock diff vs main = **+1 line** (openrpsee added to zallet's dep
+  list; main's lock already carried openrpsee's package entries). No `orchard 0.13` remains.
+- `supply-chain/config.toml` — main added an `openssl-probe` 0.2.1 exemption at the same spot; kept it.
+  The `openrpsee` exemption (line 1015) auto-merged fine.
+- `Cargo.toml`/`zallet/Cargo.toml`/`methods.rs` auto-merged.
+
+This is the **updated re-confirmation of the RESUME "Cargo.lock rebase trick"** — now that main runs
+orchard 0.14 (not the yanked ^0.13), taking main's lock + `cargo build` resolves cleanly; no need for the
+old `cargo metadata`-only dance.
+
+**Still needs:** a reviewer (REVIEW_REQUIRED). str4d helped in March; no reviewer pinged this round.
+
+---
+
+## ✅ 2026-06-08 — #400 (`z_importkey`/`z_exportkey`) rebased onto main + API break fixed + pushed
+
+PR https://github.com/zcash/wallet/pull/400 — yours, APPROVED (nullcopy), was `CONFLICTING/DIRTY`
+(16 behind main). Rebased `z_importexportkey` onto current main; new head `368ec79` (force-pushed
+`1804337…368ec79`), 0 behind. Build + `cargo fmt --check` + `cargo clippy -p zallet` all green.
+
+**Conflicts (both "both sides added different things at same spot", not logic clashes):**
+- `CHANGELOG.md` — main added `z_shieldcoinbase`, branch added `z_importkey`/`z_exportkey` to the same
+  sorted list. Kept all, alphabetical.
+- `utils.rs` — main added `collect_standalone_transparent_keys` (z_shieldcoinbase signing), branch added
+  `fetch_account_birthday` (imported-key accounts). Two distinct fns at same insertion point → kept both.
+
+**NOT purely mechanical — an API break surfaced from main's orchard-0.14/zebra-9.0 bump:**
+`fetch_account_birthday` used `chain.fetcher.get_treestate(...)`, but `FetchServiceSubscriber.fetcher`
+is now **private**. Adapted to the public `chain.z_get_treestate(...)` (the `ZcashIndexer` trait method)
++ its accessor API (`.hash()/.height()/.time()/.sapling()/.orchard()`), matching the live idiom already
+in `methods/get_new_account.rs` / `recover_accounts.rs`. Added `ZcashIndexer` to the `zaino_state`
+import in utils.rs. Kept the branch's richer error message. Amended into the single commit.
+
+**Still needs:** a maintainer to merge (it's approved + now mergeable + CI should be green since the
+workspace orchard-^0.13 blocker is cleared on main).
+
+---
+
+## 🔁 2026-06-08 — #455 RECLASSIFIED (zit-hub handoff): robustness fix, NOT a live-crash blocker
+
+**Supersedes** the 2026-06-04 framing of #455 ("genuine zallet bug, permanent fix, nothing for zaino
+to do"). New info from **zit-hub** + cross-checks against current `zcash/wallet` main this session.
+
+PR https://github.com/zcash/wallet/pull/455 — yours, `fix/empty-shielded-tree-state`, OPEN, +21/−28,
+touches `zallet/src/components/sync/steps.rs` `fetch_chain_state`. Closes #454.
+
+**What zit-hub reported (new):** integration-tests **PR #104** aligns regtest **NU5 activation to
+height 1** across both zebrad + zallet. With that alignment, `wallet.py`/the wallet suite sync to
+completion on **stock zallet (no #455)** — #104's CI is fully green and **no longer reproduces
+"Missing Orchard tree state."** So #455 is **no longer a blocker for IT CI**.
+
+**Cross-checks run this session (against current main + the #455 branch):**
+1. **Both pools covered.** ✓ #455 rewrites both `ok_or_else` sites — "Missing Sapling tree state"
+   (main line 316) and "Missing Orchard tree state" (main line 332) — into symmetric `match` arms:
+   `Some(t) if nu_active => read_frontier`, `_ => Frontier::empty()`. None ⟺ empty, both pools.
+2. **Rebase is clean for the fix.** Branch is **16 commits behind main**, but main's *only* steps.rs
+   change since fork is at line 262 (`txid: ctx.hash → ctx.txid`, the orchard-0.14 cascade), which
+   does NOT overlap the `fetch_chain_state` hunk. Rebase risk is `Cargo.lock` + orchard-0.14 cascade,
+   not the fix. (Side note: main bumped to **orchard 0.14 / zebra 9.0** on 2026-06-06, commit
+   `9be3d6e` — likely clears the workspace "orchard ^0.13 yanked" CI blocker too; check on next rebase.)
+3. **Reachability / Some(empty) vs None.** #104's green CI on stock zallet is **empirical proof that
+   zebra returns `Some(empty)` — not `None` — at an activated-but-empty tree height.** The original
+   crash was therefore a **NU5 activation-height MISALIGNMENT artifact** (zallet thought NU5 active at
+   a height where zebra returned no orchard treestate), now fixed upstream by #104 — NOT a genuine
+   empty-tree-at-active-height event. The `None` path is **not reached via zebra under aligned params.**
+
+**Verdict on zit-hub's 3 decisions:**
+1. **Still worth merging? Yes — but reclassified** from "blocker" to **defensive robustness**. None⟺empty
+   is semantically correct on any chain; the test no longer firing ≠ bug gone. One caveat: it converts a
+   loud crash into a silent empty-tree substitution *if* None were ever returned erroneously at an active
+   height with a real non-empty tree — acceptable given the None=empty contract; the PR comment documents
+   intent. No longer urgent.
+2. **Needs its own test? Yes.** Since the IT suite no longer exercises this path, #455 should carry a
+   **zallet-side unit test** for `fetch_chain_state` (None tree state + NU active ⟹ empty frontier, both
+   pools). Owned here.
+3. **#367 decoupling? Yes.** #104 makes stock zallet sync, so **#367 no longer depends on #455**;
+   integration-tests **#56 needs only #367**, not #367+#455. Decouple them. (Memory `it56` updated.)
+
+**Decided to SKIP the unit test** (2026-06-08): the `None` path isn't reachable via zebra under aligned
+params, the `sync` module has zero test precedent, and `fetch_chain_state` is coupled to
+`FetchServiceSubscriber` (no mock infra) — a real test would force a pure-helper refactor. Not worth it
+for a 6-line defensive branch; the PR comment already documents the None=empty intent.
+
+**✅ Rebased + pushed (2026-06-08):** rebased `fix/empty-shielded-tree-state` onto current main
+(`b034cf7`), **zero conflicts** (single commit touches only `steps.rs`; no Cargo.lock conflict).
+New head `00ef236` (force-pushed `3ab7bc7…00ef236`). `cargo build -p zallet` **green** + `cargo fmt
+--check` clean — notably this also confirms **main's orchard-0.14/zebra-9.0 bump cleared the workspace
+"orchard ^0.13 yanked" CI blocker** that was red on #400/#455/#367. `../wallet` left on branch
+`fix/empty-shielded-tree-state` (was `316-wallet-status`), tree clean.
+
+**Status:** (a) ~~rebase~~ DONE; (b) ~~post reclassification comment~~ **DONE** — posted
+`#issuecomment-4653238011` (FYI: not blocking IT after `zcash/integration-tests#104`, but still worth
+landing as a small robustness fix; None⟺empty holds on any chain; no internal hub/tool references since
+those repos are private). (c) **PENDING:** confirm #56 re-validates against #367 alone.
+
+---
+
 ## ⏸️ 2026-06-05 — #359 (`signmessage`, emersonian) reviewed: HOLD, needs contributor rebase
 
 PR https://github.com/zcash/wallet/pull/359 — emersonian's, fork `zecrocks/be/signmessage`, single
