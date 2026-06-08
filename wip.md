@@ -14,6 +14,108 @@ _(empty — the "Missing Orchard tree state" handoff shipped as zcash/wallet #45
 
 ---
 
+## ⏸️ 2026-06-05 — #359 (`signmessage`, emersonian) reviewed: HOLD, needs contributor rebase
+
+PR https://github.com/zcash/wallet/pull/359 — emersonian's, fork `zecrocks/be/signmessage`, single
+commit `446d71bd`. APPROVED by you 2026-02-06, MERGEABLE but mergeState **BLOCKED**, last touched
+2026-03-02. Reviewed in full this session. **Decision: HOLD — user will decide next session whether to
+nudge emersonian.** Did NOT comment, did NOT re-request review.
+
+**Why it's stuck (not a quick win after all):**
+1. **Stale `verify_message.rs` duplicate.** When approved (Feb), the PR added BOTH `signmessage` +
+   `verifymessage`. Since then **`verifymessage` landed on `main` independently via #92 (`14eee71`)**
+   with 3 follow-up fixes the branch lacks: `916d506` (use `zcash_primitives` for hashing), `5669657`
+   (rustfmt), `d364c47` (sha256d from new `zcash_transparent` location). PR still carries its older
+   `verify_message.rs` (differs from main by 4 lines) → merging as-is **regresses** main. Must DROP the
+   verify_message changes on rebase, keep only the new `signmessage` (`sign_message.rs` +20 lines in
+   `methods.rs`).
+2. **88 commits behind main** (forked 2026-02-26) — needs rebase regardless.
+3. **CI never ran** — fork PR, `check-runs total=0`, status pending. Needs a maintainer to approve the
+   fork workflow + a fresh push.
+4. Open review threads all **optional/deferred** (mod tests reorg, zcashd test vectors → future
+   integration framework, `found`/`break` simplification emersonian pushed back on). Non-blocking.
+
+**signmessage code itself = good** (already approved): rejects P2SH (P2PKH-only, matches zcashd);
+handles HD-derived + standalone-imported keys; sig header `31 + recovery_id` for compressed pubkeys
+(cites zcashd `pubkey.cpp`); reuses `verify_message::message_hash`; self-contained roundtrip tests.
+
+**Next-session action if pursuing:** post the drafted comment (saved below) asking emersonian to rebase
+onto main + drop verify_message.rs, then approve fork CI. Can't do it myself — it's a fork branch and
+dropping verify_message is a contributor decision.
+
+<details><summary>Drafted comment for #359 (not yet posted)</summary>
+
+Thanks for this @emersonian — the `signmessage` implementation looks good and is approved. One thing
+has changed underneath the PR since February that needs a small untangle before it can land:
+
+**`verifymessage` has since landed on `main` independently** (via #92, commit `14eee71`), and it's
+picked up three follow-up fixes there that this branch doesn't have:
+- `916d506` — refactor to use `zcash_primitives` for hashing
+- `5669657` — rustfmt for `verifymessage`
+- `d364c47` — use `sha256d` from its new location in `zcash_transparent`
+
+Because this branch still carries its own older copy of `verify_message.rs`, merging as-is would
+regress those fixes. Could you **rebase onto current `main` and drop the `verify_message.rs` changes**
+— keeping `main`'s version — so the PR contains only the new `signmessage` pieces (`sign_message.rs` +
+its registration in `methods.rs`)? The branch is ~88 commits behind, so a rebase is needed regardless.
+
+Once that's pushed, a maintainer can approve the CI run (it hasn't run yet since this is a fork PR —
+there are currently no checks on the branch), and assuming it's green it should be ready to merge.
+
+The open review threads (test vectors, `mod tests` organization) are all optional/deferred and don't
+block this — no need to address them here.
+
+</details>
+
+---
+
+## ✅ 2026-06-05 — #353 (`openrpsee`) REVIVED: rebased onto main, mergeable again
+
+PR https://github.com/zcash/wallet/pull/353 — yours, `docs(openrpc): Use common crate`. Was
+CONFLICTING (39 commits behind `main`). Net cleanup: +31 / −357, swapping hand-rolled
+`build.rs`/`openrpc.rs` openrpc machinery for the `openrpsee` crate.
+
+- Rebased `openrpsee` branch onto `origin/main`; **only conflict was `Cargo.lock`**. Resolved by
+  keeping `main`'s lock and adding `openrpsee v0.1.1` **incrementally** (`cargo metadata`) — a full
+  `generate-lockfile` re-resolves and dies on the **yanked `orchard 0.13`** (the workspace blocker;
+  note main's lock actually pins orchard 0.10.2/0.11.0, so it's a transitive `^0.13` requirement that
+  hits the yank only on fresh resolve).
+- Build clean against current `main`; `cargo fmt`/`clippy` pass. Force-pushed `e725146…efe9e5b`.
+- Now **MERGEABLE**, mergeState BLOCKED only on REVIEW_REQUIRED. Posted a status comment
+  (`#issuecomment-4631312199`). **Did NOT re-request review** (per user). str4d helped on this in March
+  but no reviewer pinged this round — needs someone to review.
+- `../wallet` restored to branch `316-wallet-status`, tree clean.
+
+**Reusable trick:** to rebase any stale branch whose only conflict is `Cargo.lock`, take `main`'s lock
+(`git checkout origin/main -- Cargo.lock`) then `cargo metadata` to add just the new dep — never
+`generate-lockfile` while orchard 0.13 is yanked.
+
+---
+
+## ✅ 2026-06-05 — #36 (`gettransaction`) CLOSED as superseded
+
+PR https://github.com/zcash/wallet/pull/36 — str4d's, draft, CHANGES_REQUESTED, CONFLICTING. User
+(oxarbitrage) had taken it over in Aug 2025 (commits `8aca24f…90cb282`, minor query/doc fixes) but it
+stalled. Researched whether it still had value → **no**; closed it with a summary comment
+(`#issuecomment-4630939015`).
+
+**Why it was a zombie, not a backlog item:**
+- **Deliberate maintainer call, not staleness.** nuttycom (lead) ruled twice (2025-08-20) that
+  `gettransaction` will **not** be in Zallet: it inherits zcashd's balance/`IsMine` semantics that
+  can't be made reliable in zallet (you don't always hold the full input txs) — a known **loss-of-funds
+  footgun**. Agreed replacement: extend `z_viewtransaction` to cover its use cases non-buggily.
+- **Replacement shipped.** That `z_viewtransaction` work landed: #147 (transparent-equivalent details),
+  #228 (per-account balance-effect map), #233 (account UUID per entry) — all closed. `z_viewtransaction`
+  lives on `main` (`methods/view_transaction.rs`); active follow-ups: #156, #440, #450.
+- **PR's own goal gone.** Issue #38 (which #36 "Closes") was edited to drop `gettransaction`; now only
+  covers `z_viewtransaction`, and is closed.
+- **Drift:** ~359 commits behind `main`, CONFLICTING/DIRTY. Reviving = full rebase + re-litigating a
+  settled design decision. Not worth it.
+
+Anyone wanting per-tx detail → use `z_viewtransaction`. No further action.
+
+---
+
 ## 🔧 2026-06-04 — #367 (str4d's `getwalletstatus`): review threads addressed + rebased + pushed
 
 PR https://github.com/zcash/wallet/pull/367 — str4d's, **DRAFT**, cross-repo interop
