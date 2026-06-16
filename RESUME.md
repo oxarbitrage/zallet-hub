@@ -1,48 +1,50 @@
-# RESUME — zallet-hub (updated 2026-06-08, end of session)
+# RESUME — zallet-hub (updated 2026-06-16, end of session)
 
 Prior session's "start here". Full detail in `wip.md` (newest on top; 📥 INBOX parsed by `sync.sh`).
 
 ## Headline
-Cleared the rebase backlog: **all four open zallet PRs are now on current `main`, build/fmt/clippy
-green, pushed.** Main's **orchard-0.14 / zebra-9.0 bump (2026-06-06) cleared the workspace CI blocker**
-(the yanked `orchard ^0.13` / NU7 failures) that was red on everything — so CI should now go green across
-the board. The remaining blocker on most PRs is just **reviewers / merge rights**, not code.
-
-## State of the 4 PRs (all rebased onto main this session, all pushed)
-
-1. **#400 — `z_importkey`/`z_exportkey`** (yours, **APPROVED** by nullcopy) — **CLOSEST TO DONE**
-   https://github.com/zcash/wallet/pull/400
-   - Rebased (`368ec79`). Conflicts were CHANGELOG + utils.rs (kept both new fns). **Not purely
-     mechanical:** adapted `fetch_account_birthday` off the now-private `chain.fetcher.get_treestate`
-     to the public `chain.z_get_treestate` + `ZcashIndexer` trait (matches `get_new_account.rs`).
-   - TO MERGE: approved + mergeable + CI should be green → **just needs a maintainer to merge.**
-
-2. **#455 — empty shielded tree state** (yours) — RECLASSIFIED to a robustness fix
-   https://github.com/zcash/wallet/pull/455
-   - Rebased (`00ef236`). zit-hub reported integration-tests **#104** (NU5→height 1) makes stock zallet
-     sync without this PR — so it's **no longer an IT blocker**, but still worth landing (None⟺empty is
-     correct on any chain). Posted a status comment saying exactly that. **Decided to SKIP a unit test**
-     (path unreachable via zebra under aligned params; no mock infra). Needs a reviewer.
-
-3. **#353 — `openrpsee`** (yours) — net cleanup (+31/−357)
-   https://github.com/zcash/wallet/pull/353
-   - Rebased (`d0a1fb2`). Cargo.lock conflict (branch pinned stale orchard 0.13.1) resolved by taking
-     main's lock + `cargo build` (now clean on orchard 0.14). Needs a reviewer.
-
-4. **#367 — `getwalletstatus`** (str4d's; you co-driving, str4d AWAY) — cross-repo interop
-   https://github.com/zcash/wallet/pull/367
-   - MERGEABLE, not rebased (didn't need it). **Now DECOUPLED from #455** — integration-tests **#56**
-     needs only #367. Still needs: a separate reviewer + #56 to land (zit-hub; see memory
-     `it56-interop-for-wallet367`).
-
-## ../wallet checkout state
-- Left on branch `openrpsee`, working tree clean. All four session branches pushed (0 unpushed).
+**#400 is interop-validated and queued to merge.** Ran it through the interop CI against the
+purpose-built integration test (zcash/integration-tests#76, `wallet_import_export_key.py`) — the test
+**passed** against #400's build (`True | 16 s`). Posted a "merging shortly" comment with the evidence,
+and stripped the temporary `ZIT-Revision` line back out so the merge commit is clean. #400 is
+APPROVED + mergeable + green + interop-validated. **Left it un-merged on purpose** — to merge next
+session if no new review comments arrive.
 
 ## Suggested first action next session
-Confirm CI actually went green on #400 (now that the orchard-0.14 blocker is gone) and **chase a
-maintainer to merge it** — it's approved + mergeable, the lowest-effort win. Then find reviewers for
-#353 + #455, and coordinate #367's interop (#56) with zit-hub.
+1. `gh pr view 400 --repo zcash/wallet --json reviews,comments,mergeable,statusCheckRollup` — check
+   for any NEW comments since the 2026-06-16 "merging shortly" note
+   (https://github.com/zcash/wallet/pull/400#issuecomment-4722280154).
+2. **If nothing new + still green/mergeable → merge #400.** (Confirm squash vs merge with the repo's
+   convention; ask if unsure.)
+3. Then the open follow-ups below.
 
-## Open loop handed back to zit-hub
-The #455 reclassification verdict is now durable on the PR (`#issuecomment-4653238011`). zit-hub's side:
-re-validate #56 against #367 alone (no longer #367+#455).
+## #400 validation — how it was done (reusable recipe)
+- IT #76 branch `export-import-key-test`, head `da2862386aac0649d92a28299e9b8cd5f4ec76d5`.
+- Added `ZIT-Revision: <that sha>` to #400's body → re-ran the **`trigger-integration`** job (it reads
+  the LIVE PR body at runtime, so no new commit needed) → dispatched `zallet-interop-request` to
+  integration-tests with #400's head SHA + the test ref.
+- IT `ci.yml` checks out integration-tests at `test_sha` (so #76's new test is present) + zcash/wallet
+  at `sha` (#400's build). Result is **fire-and-forget** — NOT a status check on #400; watch it at
+  `gh run list --repo zcash/integration-tests --event repository_dispatch`.
+- Run: https://github.com/zcash/integration-tests/actions/runs/27633015589 → `wallet_import_export_key.py`
+  passed (shard-1). Remember to strip the `ZIT-Revision` line before merging.
+
+## Open follow-ups (both zit-hub — coordinate, don't fix from here)
+1. **integration-tests `main` has pre-existing failing RPC tests** unrelated to any zallet PR
+   (`nuparams.py` getblocksubsidy assertion was the red shard-9 in our run; an earlier interop run red'd
+   on `decodescript.py`). They red the OVERALL interop conclusion for every zallet PR even when the
+   zallet-specific test passes. Consider an integration-tests issue (their repo / their call).
+2. **IT #76 still needs to merge** into integration-tests main to make the import/export coverage
+   permanent. We validated against the branch, independent of when #76 lands.
+
+## The other 2 PRs (unchanged from 2026-06-08 — still need reviewers)
+- **#455** empty shielded tree state — REVIEW_REQUIRED, CI pass, mergeable.
+  https://github.com/zcash/wallet/pull/455
+- **#353** `openrpsee` cleanup — REVIEW_REQUIRED, CI pass, mergeable.
+  https://github.com/zcash/wallet/pull/353
+- **#367** `getwalletstatus` (str4d's, you co-driving) — needs a reviewer + integration-tests #56 to
+  land (zit-hub; see memory `it56-interop-for-wallet367`).
+
+## ../wallet checkout state
+- No working-tree changes this session (validation ran entirely via CI). Branch left as previously
+  (`openrpsee`), clean.

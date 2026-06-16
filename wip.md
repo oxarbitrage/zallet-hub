@@ -14,6 +14,42 @@ _(empty — the "Missing Orchard tree state" handoff shipped as zcash/wallet #45
 
 ---
 
+## ✅ 2026-06-16 — #400 interop-validated via IT #76; "merging soon" posted
+
+PR https://github.com/zcash/wallet/pull/400 (`z_importkey`/`z_exportkey`, APPROVED + green + mergeable).
+Before merging, validated it against the purpose-built integration test
+**zcash/integration-tests#76** (`wallet_import_export_key.py`, branch `export-import-key-test`,
+head `da2862386aac0649d92a28299e9b8cd5f4ec76d5`).
+
+**How (interop CI route, the in-scope mechanism — no handoff needed to run it):**
+- Added `ZIT-Revision: da286238…` to #400's body, re-ran the `trigger-integration` job (job reads the
+  live PR body at runtime, so no new commit needed). It dispatched `zallet-interop-request` to
+  integration-tests with #400's head SHA + that test ref.
+- IT `ci.yml` (on `*-interop-request`) checks out integration-tests at `client_payload.test_sha`
+  (so #76's new test file is present) AND zcash/wallet at `client_payload.sha` (#400's build).
+- Interop run: https://github.com/zcash/integration-tests/actions/runs/27633015589
+
+**Result:** ✅ `wallet_import_export_key.py | True | 16 s` (shard-1). #400 is validated.
+- The run's overall conclusion was **failure**, but ONLY on shard-9 `nuparams.py`
+  (`getblocksubsidy()["miner"] == 12.5` assertion). #400's diff cannot touch subsidy → **unrelated,
+  pre-existing integration-tests instability** (an earlier 07:06 interop run failed on *different*
+  tests — `decodescript.py` etc. — confirming IT main currently has several flaky/broken RPC tests;
+  which one trips depends on non-deterministic shard assignment).
+
+**Posted** "merging soon" comment with the evidence:
+https://github.com/zcash/wallet/pull/400#issuecomment-4722280154
+Then **stripped the `ZIT-Revision` line** back out so the eventual merge commit stays clean.
+
+**Next:** merge #400 (approved + green + interop-validated — awaiting go-ahead on timing).
+
+**↪️ Handoff to zit-hub:** integration-tests `main` has failing RPC tests unrelated to any zallet PR
+(`nuparams.py` getblocksubsidy assertion; `decodescript.py` seen earlier). These red the overall
+interop conclusion for every zallet PR even when the zallet-specific test passes. Owning hub:
+zit-hub. Also: IT #76 itself still needs to **merge into integration-tests main** to become permanent
+coverage (zit-hub deliverable) — we validated against the branch, independent of when #76 lands.
+
+---
+
 ## ✅ 2026-06-08 — #353 (`openrpsee`) rebased onto main + pushed
 
 PR https://github.com/zcash/wallet/pull/353 — yours, `docs(openrpc): Use common crate`, was
