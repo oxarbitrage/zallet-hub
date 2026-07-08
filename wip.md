@@ -14,6 +14,68 @@ _(empty — the "Missing Orchard tree state" handoff shipped as zcash/wallet #45
 
 ---
 
+## 🔬 2026-07-08 — Live z_importkey (#400) recovery session: two defects found
+
+Maintainer (oxarbitrage) is recovering real funds with `z_importkey` (the just-merged #400) against a
+local Zebra v5.2.0 + Zaino, Zallet v0.1.0-alpha.4. Surfaced two issues:
+
+**(A) [handed off to zebra] Indexer WARN flood** → **ZcashFoundation/zebra#10924** (NOTE: Zebra is
+`ZcashFoundation/zebra`, not `zcash/zebra`). While Zallet drives Zebra's indexer during a heavy
+rescan, Zebra logs `WARN zebra_rpc::indexer::methods: slow consumer, dropping non_finalized_state_change
+stream` many times/sec. Source: `zebra-rpc/src/indexer/methods.rs:129-135` (+ `:63` chain_tip_change,
+`:194` mempool_change) — on a Full bounded channel it WARNs and ends the task; the flood is the
+Zaino/Zallet client re-subscribing tightly (uses stream-close as its tip-change signal; cf. TODO in
+Zallet `sync.rs`). Asked Zebra to rate-limit/downgrade the log. Complementary Zaino/Zallet-side
+re-subscription fix is separate (not filed yet).
+
+**(B) [zallet bug — ✅ FIXED & VALIDATED, branch pushed, issue #563, awaiting feedback] `z_importkey` doesn't reload the sync engine's decryptor keys.**
+The batch decryptor (`zcash_client_backend::sync::decryptor`) loads viewing keys ONCE at sync startup
+and only refreshes on an explicit `Handle::reload_keys()` — which **nothing in zallet ever calls**
+(`grep reload_keys zallet-core/src → 0 hits`). So importing a key into a *running* wallet: the account
++ UFVK land in the DB and the scan range is re-queued, but the already-running decryptor keeps
+trial-decrypting with the pre-import key set → the whole genesis→tip scan finds zero notes for the
+imported key → empty balance despite `getwalletstatus` reaching the tip. Confirmed on current main
+(f010582) too; the backend-split moved code under `zallet-core/`.
+
+**Fix (push variant) — applied, committed, pushed, RECOVERY SUCCEEDED.**
+- Checkout `/home/alfredo/zebra/recover-my-zec/zallet2`, branch `fix-import-key-reload-keys`, based on
+  current main `f010582`. Commit **`b1a91a0`** `fix(rpc): reload sync engine viewing keys after
+  z_importkey` (6 files, +76/-15), **pushed to origin** (`zcash/wallet` → redirects to **`zcash/zallet`**;
+  oxarbitrage has WRITE). fmt-clean, clippy-clean, builds. **PR NOT opened yet** (maintainer reviewing
+  approach first). Create-PR / compare:
+  https://github.com/zcash/zallet/compare/main...fix-import-key-reload-keys
+- **The fix:** thread the decryptor `Handle` (Clone; `reload_keys(&self) -> Option<Receiver<()>>`) from
+  `WalletSync::spawn` → `start.rs` (spawn sync BEFORE rpc) → `JsonRpc::spawn` → `server::spawn` →
+  `WalletRpcImpl` field → `import_key::call` calls `reload_keys()` (awaited) after `import_account_ufvk`.
+- **Issue #563** https://github.com/zcash/zallet/issues/563 — surfaces the design fork: **push** (this
+  branch) vs **pull** (sync engine reloads keys itself — 1-file `sync.rs` change, covers all import
+  paths, some reload cost). Also asks scope: `z_importkey` only vs also `z_importviewingkey`/
+  `importaddress`. **Maintainer (oxarbitrage) requested feedback on #563 — WAITING on that before
+  finalizing PR / choosing push-vs-pull.**
+- **Caveat (in issue + must be in PR):** `reload_keys()` only helps blocks scanned AFTER the reload; a
+  key whose birthday is in an already-scanned range still needs an explicit rescan (`rewind_to_height`
+  TODO in `import_key.rs`). Recover-from-genesis unaffected (birthday 0 below the scanned frontier;
+  import re-queues the range).
+- **Still TODO for the PR:** regtest integration test (import into running wallet → note detected without
+  restart); decide push-vs-pull per #563 feedback; maybe spike the pull variant to compare diffs.
+
+**Recovery environment gotcha (state DB format).** zallet2 (main) links **zebra-state 10.0.0 = on-disk
+state format v28**, opened READ-ONLY (the `zebra` backend's in-process `ReadStateService` over zebrad's
+state dir — NOT a second node). The user's zebra v5.2.0 wrote **format v27** (`zebra-state 9.0.1`), so
+zallet2 refused it. Resolution: user built a newer zebra ("zebra2") that upgrades the state v27→v28
+in place (one-way; keep a copy if v5.2.0 still needed). **Rule: the running zebra's on-disk state format
+must match what zallet's pinned zebra-state expects** — check `DATABASE_FORMAT_VERSION` in
+`zebra-state/src/constants.rs` on both sides. This is the concrete cost of basing zallet2 on main vs
+the alpha.4 tag (alpha.4 was v27-compatible with their running zebra).
+
+**Recovery outcome:** ✅ real Sapling balance recovered. Fresh wallet datadir + zebra2 + zallet-zebra
+(the fix), import at startup, funds detected on the scan WITHOUT truncate/restart. This is the
+end-to-end validation of the fix. `repair truncate-wallet <H>` remains the fallback rescan lever.
+User's next (non-hub) TODOs: back up the recovered wallet datadir (`wallet.db` + `encryption-identity.txt`)
++ secure the spending key; confirm spendable (not just pending) balance for transfers.
+
+---
+
 ## ✅ 2026-06-23 (resolved) — #400 merge BROKE main; fixed by #506 (my #505 superseded)
 
 **RESOLVED.** `main` is green again. The fix landed via **#506** (nuttycom, "fix: make the

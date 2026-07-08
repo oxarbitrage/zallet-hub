@@ -1,26 +1,40 @@
-# RESUME — zallet-hub (updated 2026-06-23, end of session)
+# RESUME — zallet-hub (updated 2026-07-08, end of session)
 
 Prior session's "start here". Full detail in `wip.md` (newest on top; 📥 INBOX parsed by `sync.sh`).
+NOTE: repo `zcash/wallet` was **renamed → `zcash/zallet`** (old URLs redirect). Zebra is
+`ZcashFoundation/zebra`.
 
-## Headline — ✅ main is GREEN again (#400 breakage fixed by #506)
-**#400 broke `main`** (semantic conflict with the "JSON-RPC generic over Chain" refactor that landed
-after #400's last CI). **Fixed** by **#506** (nuttycom), merged 2026-06-23T17:31:07Z (`a31e128`) —
-main CI fully green. My fix PR **#505 was CLOSED as superseded** (byte-identical `import_key.rs` change;
-same approach). Nothing left to do on the breakage.
+## Headline — 🔧 Found + fixed a `z_importkey` bug while recovering real funds; branch pushed, awaiting feedback
+While the maintainer recovered a real Sapling balance via `z_importkey` (#400), we found that
+**importing a key into a running wallet is never scanned** — the sync engine's batch decryptor loads
+viewing keys once at startup and nothing ever calls `reload_keys()`, so a full rescan finds zero notes
+until a restart. **Fixed (push variant)** on branch **`fix-import-key-reload-keys`** (commit `b1a91a0`,
+pushed to `zcash/zallet`; fmt+clippy clean; **validated end-to-end — the recovery succeeded**). Filed
+**issue #563** raising the design fork (**push** vs **pull**) + scope (other import RPCs). **PR NOT
+opened yet** — maintainer requested feedback on #563 first.
 
 ## Suggested first action next session
-1. `bash sync.sh` — confirm main still green and the ready-to-merge / your-PRs picture.
-2. Then the 2 remaining PRs of yours, both just need reviewers (no action blocked on you):
-   - **#455** sync: absent shielded tree state as empty NCT — REVIEW_REQUIRED, CI PASS, mergeable.
-     https://github.com/zcash/wallet/pull/455
-   - **#353** docs(openrpc): use common crate — REVIEW_REQUIRED, CI PASS, mergeable.
-     https://github.com/zcash/wallet/pull/353
-3. **#367** `getwalletstatus` (str4d's, you co-driving) — needs a reviewer + integration-tests #56 to
-   land first (zit-hub; see memory `it56-interop-for-wallet367`). Check whether IT #56 has merged yet.
+1. **Check issue #563 for maintainer feedback** on push-vs-pull + scope, then act on it:
+   https://github.com/zcash/zallet/issues/563
+   - If push blessed → add the **regtest integration test** (import into running wallet → note detected
+     without restart) to branch `fix-import-key-reload-keys`, then open the PR (`Closes #563`).
+   - If pull preferred → spike the 1-file `sync.rs` variant and swap the branch.
+   Compare/PR: https://github.com/zcash/zallet/compare/main...fix-import-key-reload-keys
+2. **Two PRs still just need reviewers** (unchanged; nothing blocked on you):
+   - **#455** sync: absent shielded tree state as empty NCT — https://github.com/zcash/zallet/pull/455
+   - **#353** docs(openrpc): use common crate — https://github.com/zcash/zallet/pull/353
+3. **#367** `getwalletstatus` (str4d's, co-driving) — needs a reviewer + integration-tests #56 first
+   (zit-hub; memory `it56-interop-for-wallet367`).
 
-⚠️ **Recipe lesson (see wip.md):** a PR can be green + mergeable + CLEAN and still break main if a
-refactor landed after its last CI run — GitHub doesn't rebuild the branch against latest main. Re-run
-the PR's CI (or rebase) before merging when main has moved materially since the last green run.
+## Also filed this session (zebra handoff)
+- **ZcashFoundation/zebra#10924** — indexer `slow consumer, dropping … stream` WARN flood (zebra-hub).
+  https://github.com/ZcashFoundation/zebra/issues/10924
+
+## Recovery-build note (if reproducing)
+zallet2 checkout at `/home/alfredo/zebra/recover-my-zec/zallet2` (main + the fix). The `zebra` backend
+opens zebrad's state **read-only in-process** and pins **zebra-state 10.0.0 = state format v28**; it
+must match the running zebra's on-disk format (their old zebra v5.2.0 was v27 → needed a newer "zebra2"
+to upgrade v27→v28). `repair truncate-wallet <H>` is the fallback rescan lever.
 
 ## Open follow-ups (both zit-hub — coordinate, don't fix from here)
 1. **integration-tests `main` has pre-existing failing RPC tests** unrelated to any zallet PR
@@ -31,5 +45,6 @@ the PR's CI (or rebase) before merging when main has moved materially since the 
    make the import/export coverage permanent. #400 was validated against the branch, independent of
    when #76 lands. Now that #400 is merged, this is the loose end on the IT side.
 
-## ../wallet checkout state
-- No working-tree changes this session (merge done via `gh`). Branch left as previously (`openrpsee`).
+## checkout state
+- Hub's `../wallet` checkout: untouched this session (all fix work happened in the separate recovery
+  checkout `/home/alfredo/zebra/recover-my-zec/zallet2` on branch `fix-import-key-reload-keys`).
