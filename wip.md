@@ -14,6 +14,70 @@ _(empty — the "Missing Orchard tree state" handoff shipped as zcash/wallet #45
 
 ---
 
+## ✅ 2026-06-23 (resolved) — #400 merge BROKE main; fixed by #506 (my #505 superseded)
+
+**RESOLVED.** `main` is green again. The fix landed via **#506** (nuttycom, "fix: make the
+z_importkey path generic over the chain backend"), merged 2026-06-23T17:31:07Z, merge commit
+`a31e128be6db9bc60aad6d3905ad511ad360f4af`. Full CI on the merge (CI / Lints / Build-and-Run-Docker /
+Audits) all green. **My PR #505 was CLOSED as superseded** — its `import_key.rs` change was
+byte-identical to #506 (same blob `78aa0dc5`); both used the same `chain.snapshot()` +
+`ChainView::tree_state_as_of` + `AccountBirthday::from_parts(chain_state, None)` migration (the
+canonical post-refactor pattern from `get_new_account.rs`). Independent corroboration of the fix.
+Minor deltas in #506 vs #505: #506 kept the original `ErrorObjectOwned(InternalError)` error mapping
+(my #505 used `LegacyCode::Database`), and #506 additionally added `merge_group:` triggers to
+`audits.yml`/`lints.yml` (wires them into the merge queue). The historical detail below stands.
+
+## ⚠️→🔧 2026-06-23 — #400 merge BROKE main; fix PR #505 opened
+
+Merging #400 (below) **broke `main`'s build** — NOT unrelated. CI on the merge commit
+`a0f45568` went red across **CI / Lints / Build-and-Run-Docker** (all green on #400's PR head;
+prior merge #488 ~7h earlier was fully green).
+
+**Root cause — semantic merge conflict (clean text, incompatible types).** Every failure was the
+same error:
+```
+error[E0308]: `?` operator has incompatible types
+ --> zallet/src/components/json_rpc/methods.rs:1009:13   (self.chain().await? in import_key)
+ expected `FetchServiceSubscriber`, found type parameter `C`
+```
+#400's branch last built **2026-06-08**. The *"make the JSON-RPC layer generic over Chain"* refactor
+landed on main **2026-06-19 … 06-22** (#492 `generic_chain_view`), turning `self.chain()` into a
+generic `C: Chain`. #400 still passed a concrete `FetchServiceSubscriber` into `import_key::call` +
+its `fetch_account_birthday` helper. GitHub reported #400 MERGEABLE/CLEAN because there was no
+*textual* conflict and it does **not** rebuild the branch against latest main — so the type-level
+break was invisible at merge time. (The 06-16 interop validation also ran against the pre-refactor tree.)
+
+**Lesson for the recipe:** green + mergeable + clean ≠ safe to merge if a refactor landed after the
+PR's last CI run. Re-trigger the PR's CI (or rebase) when main has moved materially since the last
+green run, *before* merging.
+
+**Fix (chosen: forward-fix in a new PR, per maintainer):** PR **#505** `rpc: make z_importkey generic
+over Chain` — https://github.com/zcash/wallet/pull/505
+- Branch `fix-import-key-generic-chain` (off `a0f45568`), commit `ae5c617`.
+- Migrated `import_key::call` → `call<C: Chain>(... chain: C ...)` and `fetch_account_birthday` →
+  generic `<C: Chain>`, reading the treestate via `chain.snapshot()` + `ChainView::tree_state_as_of`
+  (mirrors the post-refactor pattern in `get_new_account.rs`). Dropped now-unused imports
+  (`FetchServiceSubscriber`, `ZcashIndexer`, `TreeState`, `NetworkType`/`Parameters`, `ErrorObjectOwned`).
+- Verified locally on current main: `cargo build -p zallet` ✓, `cargo clippy -p zallet --all-targets` ✓,
+  `cargo fmt --check` ✓, `cargo test -p zallet import_key` ✓ (12 passed).
+- **Next:** watch #505 CI; once green + a reviewer signs off, merge to restore main. main stays red
+  until #505 lands.
+
+---
+
+## ✅ 2026-06-23 — #400 MERGED
+
+PR https://github.com/zcash/wallet/pull/400 (`z_importkey`/`z_exportkey` for Sapling) **merged** at
+2026-06-23T11:58:36Z. Merge commit `a0f4556818176d6698e153992c2fb7d141cd7bbe`. Method: **merge commit**
+(repo allows merge commits only — `allow_squash_merge`/`allow_rebase_merge` both false).
+
+Pre-merge re-check (per 2026-06-16 plan): no NEW review comments since the "merging soon" note — only a
+`linear` linkback bot comment + my own 06-16 validation comment. State APPROVED (nullcopy) + MERGEABLE +
+CLEAN + all 27 status checks green. `ZIT-Revision` line was already stripped on 2026-06-16, so the merge
+commit is clean. Done.
+
+---
+
 ## ✅ 2026-06-16 — #400 interop-validated via IT #76; "merging soon" posted
 
 PR https://github.com/zcash/wallet/pull/400 (`z_importkey`/`z_exportkey`, APPROVED + green + mergeable).
