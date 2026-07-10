@@ -14,11 +14,12 @@ _(empty — the "Missing Orchard tree state" handoff shipped as zcash/wallet #45
 
 ---
 
-## ✅ 2026-07-09 — reload-keys fix shipped as PR #579 (supersedes the #563 branch work)
+## ✅ 2026-07-10 — PR #579 MERGED (nuttycom utACK, all CI green); reload-keys fix landed
 
-nuttycom chose **push** on #563. Rebuilt the fix and opened it.
+nuttycom chose **push** on #563. Rebuilt the fix, opened #579, **merged 2026-07-10**. Next item is
+the #578 rewind follow-up (self-assigned).
 
-- **PR #579** — fix: reload sync engine viewing keys after key-adding RPCs (`Closes #563`)
+- **PR #579** — fix: reload sync engine viewing keys after key-adding RPCs (`Closes #563`) — **MERGED**
   https://github.com/zcash/zallet/pull/579
 - **Issue #578** — rewind-to-height follow-up (already-scanned birthday needs rescan);
   **assigned to oxarbitrage 2026-07-09** — own work item, pick up after #579
