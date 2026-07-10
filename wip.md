@@ -14,6 +14,33 @@ _(empty — the "Missing Orchard tree state" handoff shipped as zcash/wallet #45
 
 ---
 
+## ✅ 2026-07-09 — reload-keys fix shipped as PR #579 (supersedes the #563 branch work)
+
+nuttycom chose **push** on #563. Rebuilt the fix and opened it.
+
+- **PR #579** — fix: reload sync engine viewing keys after key-adding RPCs (`Closes #563`)
+  https://github.com/zcash/zallet/pull/579
+- **Issue #578** — rewind-to-height follow-up (already-scanned birthday needs rescan);
+  **assigned to oxarbitrage 2026-07-09** — own work item, pick up after #579
+  https://github.com/zcash/zallet/issues/578
+
+What happened this session:
+- Ran a **deep (workflow) code review** of the branch → 4 real findings. Two changed earlier
+  conclusions: **F1** the spawn-sync-before-RPC reorder actually delays RPC startup (spawn awaits
+  `initialize()`'s scan) → reworked as **decouple** (`WalletSync::build_decryptor()`, RPC keeps its
+  handle, no reorder). **F4** `z_getnewaccount`/`z_recoveraccount` share the bug → fixed too.
+  **F2/F3** reload now **fire-and-don't-block** + `warn!` (was swallowing failure / could hang).
+- Branch was **35 commits stale** → rebuilt fresh off `origin/main` (sync.rs heavily rewritten on
+  main: Ironwood, ZeWIF, reorg handling). Force-pushed onto `fix-import-key-reload-keys`.
+- 3 commits (importkey / F4-siblings / alias-refactor), each builds independently; wallet +
+  merchant_terminal clean, clippy 0, fmt OK, tests compile.
+- **Build gotcha:** current main needs **protoc ≥ 3.15**; this box has 3.12.4 → used a local
+  `protoc 25.1` via `PROTOC=…`. (memory `zimportkey-reload-keys-fix`, `merge-needs-fresh-ci-vs-current-main`)
+
+Next: watch #579 CI + reviews. Old memory of "awaiting push-vs-pull" is now superseded.
+
+---
+
 ## 🔬 2026-07-08 — Live z_importkey (#400) recovery session: two defects found
 
 Maintainer (oxarbitrage) is recovering real funds with `z_importkey` (the just-merged #400) against a

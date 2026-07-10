@@ -1,3 +1,6 @@
 # Transient harness runtime state
 .claude/
 *.lock
+
+# Personal recovery runbook (references wallet paths/keys — never commit)
+RECOVERY-RUNBOOK.md
